@@ -1,0 +1,44 @@
+output_dir: /Users/yue.hu/Documents/proj/NBFNet/experiments/
+
+dataset:
+  class: biomedical
+  path: /Users/yue.hu/Documents/proj/functionalannotation/NBFNet/data/mock
+  include_factgraph: True
+  
+task:
+  class: KnowledgeGraphCompletionBiomed
+  model:
+    class: AStarNet
+    base_layer:
+      class: NBFNetConv
+      input_dim: 32
+      output_dim: 32
+      query_input_dim: 32
+      message_func: distmult
+      aggregate_func: pna
+      layer_norm: yes
+      dependent: yes
+    num_layer: 6
+    short_cut: yes
+    remove_one_hop: yes
+    node_ratio: 0.1
+  criterion: bce
+  num_negative: 32
+  strict_negative: yes
+  adversarial_temperature: 0.5
+  sample_weight: no
+  full_batch_eval: yes
+  conditional_probability: yes
+
+optimizer:
+  class: Adam
+  lr: 5.0e-3
+
+engine:
+  gpus: {{ gpus }}
+  batch_size: 64
+
+train:
+  num_epoch: 5
+
+metric: mrr
