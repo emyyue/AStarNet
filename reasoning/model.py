@@ -91,7 +91,8 @@ class NeuralBellmanFordNetwork(nn.Module, core.Configurable):
         score = self.mlp(hidden).squeeze(-1)
         return score
 
-    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None):
+    
+    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=None):
         if all_loss is not None:
             graph = self.remove_easy_edges(graph, h_index, t_index, r_index)
         if self.edge_dropout:
@@ -373,10 +374,12 @@ class AStarNetwork(NeuralBellmanFordNetwork, core.Configurable):
         x = self.layers[0].compute_message(hidden, heuristic)
         score = self.mlp(x).squeeze(-1)
         return score
+    
 
-    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None):
+
+    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=False):
         if self.training:
-            return super(AStarNetwork, self).forward(graph, h_index, t_index, r_index, all_loss, metric)
+            return super(AStarNetwork, self).forward(graph, h_index, t_index, r_index, all_loss, metric, conditional_probability)
 
         # adjust batch size for test node ratio
         num_chunk = math.ceil(self.test_node_ratio / self.node_ratio / 5)
