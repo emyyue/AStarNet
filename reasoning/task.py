@@ -197,7 +197,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                  metric=("mr", "mrr", "hits@1", "hits@3", "hits@10", "hits@100", "auroc", "ap"),
                  num_negative=128, margin=6, adversarial_temperature=0, strict_negative=True,
                  heterogeneous_negative=False, heterogeneous_evaluation=False, filtered_ranking=True,
-                 fact_ratio=None, sample_weight=True, gene_annotation_predict=False, conditional_probability=False,
+                 fact_ratio=None, sample_weight=True, conditional_probability=False,
                  full_batch_eval=False):
         super(KnowledgeGraphCompletionBiomed, self).__init__(model=model, criterion=criterion, metric=metric, 
                                                              num_negative=num_negative, margin=margin,
@@ -207,7 +207,6 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                                                              sample_weight=sample_weight, full_batch_eval=full_batch_eval)
         self.heterogeneous_negative = heterogeneous_negative
         self.heterogeneous_evaluation = heterogeneous_evaluation
-        self.gene_annotation_predict = gene_annotation_predict
         self.conditional_probability = conditional_probability
         
     def preprocess(self, train_set, valid_set, test_set):
@@ -370,9 +369,6 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
         return metric
     
     def predict(self, batch, dataset, all_loss=None, metric=None):
-        # Zhaocheng: which dataset do you refer to here as the default argument?
-        # A better practice is to store a pointer to the dataset in preprocess()
-        # not to change the interface of predict()
         pos_h_index, pos_t_index, pos_r_index = batch.t()
         batch_size = len(batch)
 
@@ -380,19 +376,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
             # test
             if self.conditional_probability:
                 # conditional probability
-                if self.gene_annotation_predict:
-                    # Zhaocheng: This is invoked **every time** you make a prediction
-                    # Emy: Yes, will change
-                    # Maybe you want to put it into preprocess to save time
-                    # change all_index to only evaluation against GO terms
-                    nodes = dataset.entity_vocab
-                    nodes__dict = {ix: val for ix, val in enumerate(nodes)}
-                    go_id = [key for key, val in nodes__dict.items() if val.startswith('GO:')]
-                    all_index = torch.tensor(go_id, device=self.device) # evaluate against only GO terms
-                else:
-                    all_index = torch.arange(self.num_entity, device=self.device) # evaluate against all nodes
-
-
+                all_index = torch.arange(self.num_entity, device=self.device) # evaluate against all nodes
                 t_preds = []
                 h_preds = []
                 num_negative = self.num_entity if self.full_batch_eval else self.num_negative
@@ -417,30 +401,19 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                 
             else:
             # joint probability
-                # graph = self.fact_graph
-                # graph = graph.undirected(add_inverse=True)
-                # num_nodes_per_type = torch.bincount(graph.node_type)
-                # degree_in_type = self.get_degree_in_type(graph)
-                
                 graph = self.undirected_fact_graph
                 num_nodes_per_type = graph.num_nodes_per_type
                 degree_in_type = graph.degree_in_type
                 
-                
-                # Should it be strict_negative with 1 num_negative?
-                # sample negative samples
                 if self.strict_negative:
                     neg_h_index, neg_t_index = self._strict_negative(pos_h_index, pos_t_index, pos_r_index, degree_in_type, num_nodes_per_type, graph)
                 else:
                     neg_h_index, neg_t_index = torch.randint(self.num_node, (2, batch_size * batch_size * self.num_negative), device=self.device)
-                # make dim 0 batch size and dim 1 negative samples
                 neg_h_index = neg_h_index.view(batch_size, self.num_negative)
                 neg_t_index = neg_t_index.view(batch_size, self.num_negative)
-                # repeat one more time than the number of negative samples [32,33]
                 h_index = pos_h_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
                 t_index = pos_t_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
                 r_index = pos_r_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
-                # first one is true head and tail, rest are the negative samples for head and tail
                 h_index[:, 1:] = neg_h_index
                 t_index[:, 1:] = neg_t_index
                 pred = self.model(graph, h_index, t_index, r_index, all_loss=all_loss, metric=metric, conditional_probability = self.conditional_probability)
@@ -459,14 +432,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                 t_index[:batch_size // 2, 1:] = neg_index[:batch_size // 2]
                 h_index[batch_size // 2:, 1:] = neg_index[batch_size // 2:]
                 pred = self.model(self.fact_graph, h_index, t_index, r_index, all_loss=all_loss, metric=metric, conditional_probability = self.conditional_probability)
-            else:
-                # joint probability
-                # calculate degree_in_type first
-                # graph = self.fact_graph
-                # graph = graph.undirected(add_inverse=True)
-                # num_nodes_per_type = torch.bincount(graph.node_type)
-                # degree_in_type = self.get_degree_in_type(graph)
-                
+            else:                
                 graph = self.undirected_fact_graph
                 num_nodes_per_type = graph.num_nodes_per_type
                 degree_in_type = graph.degree_in_type
@@ -476,14 +442,11 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                     neg_h_index, neg_t_index = self._strict_negative(pos_h_index, pos_t_index, pos_r_index, degree_in_type, num_nodes_per_type, graph)
                 else:
                     neg_h_index, neg_t_index = torch.randint(self.num_node, (2, batch_size * self.num_negative), device=self.device)
-                # make dim 0 batch size and dim 1 negative samples
                 neg_h_index = neg_h_index.view(batch_size, self.num_negative)
                 neg_t_index = neg_t_index.view(batch_size, self.num_negative)
-                # repeat one more time than the number of negative samples [32,33]
                 h_index = pos_h_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
                 t_index = pos_t_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
                 r_index = pos_r_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
-                # first one is true head and tail, rest are the negative samples for head and tail
                 h_index[:, 1:] = neg_h_index
                 t_index[:, 1:] = neg_t_index
                 pred = self.model(graph, h_index, t_index, r_index, all_loss=all_loss, metric=metric, conditional_probability = self.conditional_probability)
@@ -550,16 +513,11 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
             # find the node types of pos_t
             pos_t_type = node_type[pos_t_index]
             pos_h_type = node_type[pos_h_index]
-            
-            # index the  degree of node h connecting to type t
-            # number of nodes of type(t) - degree of node h connecting to relation r
-            # prob = (num_nodes_per_type[pos_t_type].unsqueeze(1) - degree_in_type[pos_r_index]).float()
+
             pos_r_index_rev = (pos_r_index + self.num_relation) % (self.num_relation * 2)
             prob = ((num_nodes_per_type[pos_t_type]*2).unsqueeze(1) - 
                     (degree_in_type[pos_r_index] + degree_in_type[pos_r_index_rev])).float()
 
-            # TODO: not sure?
-            # if type_h == type_t, remove one from prob
             same_type_mask = pos_t_type == pos_h_type
             prob[same_type_mask] -= 1
             # set to 0, if not from desired node type
