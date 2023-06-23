@@ -92,14 +92,31 @@ class NeuralBellmanFordNetwork(nn.Module, core.Configurable):
         return score
 
     
-    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=None):
+    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=True):
         if all_loss is not None:
-            graph = self.remove_easy_edges(graph, h_index, t_index, r_index)
+            # train
+            # remove both r and r-1 edges if conditional_probability=False
+            if conditional_probability:
+                assert graph.num_relation == self.num_relation
+                graph = self.remove_easy_edges(graph, h_index, t_index, r_index)
+            else:
+                assert graph.num_relation == self.num_relation * 2 
+                graph = self.remove_easy_edges(graph, h_index, t_index, r_index) # remove r
+                graph = self.remove_easy_edges(graph, t_index, h_index, (r_index + self.num_relation) % (self.num_relation * 2)) # remove r-1
+                
         if self.edge_dropout:
             graph = graph.clone()
             graph._edge_weight = self.edge_dropout(graph.edge_weight)
-        graph = graph.undirected(add_inverse=True)
-        h_index, t_index, r_index = self.negative_sample_to_tail(h_index, t_index, r_index)
+            
+        if conditional_probability:
+            graph = graph.undirected(add_inverse=True)
+            h_index, t_index, r_index = self.negative_sample_to_tail(h_index, t_index, r_index)  
+            assert (h_index[:, [0]] == h_index).all()
+        else:
+            h_index = h_index.view(-1, 1)
+            t_index = t_index.view(-1, 1)
+            r_index = torch.zeros_like(h_index)  
+            
         if not self.shared_graph:
             batch_size = len(h_index)
             graph = RepeatGraph(graph, batch_size)
@@ -115,7 +132,18 @@ class NeuralBellmanFordNetwork(nn.Module, core.Configurable):
             score = score.transpose(0, 1).gather(1, t_index)
         else:
             score = score[t_index]
-
+            
+        if not conditional_probability:
+            assert (t_index[:, [0]] == t_index).all()
+            r_index = (r_index + self.num_relation) % (self.num_relation * 2)
+            output = self.search(graph, t_index[:, 0], r_index[:, 0], all_loss=all_loss, metric=metric)
+            inv_score = output["node_score"]
+            if self.shared_graph:
+                inv_score = inv_score.transpose(0, 1).gather(1, h_index)
+            else:
+                inv_score = inv_score[h_index]
+            score = (score + inv_score) / 2
+            
         return score
 
     def visualize(self, graph, h_index, t_index, r_index):
@@ -377,9 +405,11 @@ class AStarNetwork(NeuralBellmanFordNetwork, core.Configurable):
     
 
 
-    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=False):
+    def forward(self, graph, h_index, t_index, r_index, all_loss=None, metric=None, conditional_probability=True):
         if self.training:
-            return super(AStarNetwork, self).forward(graph, h_index, t_index, r_index, all_loss, metric, conditional_probability)
+            return super(AStarNetwork, self).forward(
+                graph, h_index, t_index, r_index, all_loss, metric, conditional_probability=conditional_probability,
+            )
 
         # adjust batch size for test node ratio
         num_chunk = math.ceil(self.test_node_ratio / self.node_ratio / 5)
@@ -388,7 +418,7 @@ class AStarNetwork(NeuralBellmanFordNetwork, core.Configurable):
         r_indexes = r_index.chunk(num_chunk)
         scores = []
         for h_index, t_index, r_index in zip(h_indexes, t_indexes, r_indexes):
-            score = super(AStarNetwork, self).forward(graph, h_index, t_index, r_index, all_loss, metric)
+            score = super(AStarNetwork, self).forward(graph, h_index, t_index, r_index, all_loss, metric, conditional_probability)
             scores.append(score)
         score = torch.cat(scores)
         return score

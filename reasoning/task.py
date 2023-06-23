@@ -371,6 +371,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
     def predict(self, batch, dataset, all_loss=None, metric=None):
         pos_h_index, pos_t_index, pos_r_index = batch.t()
         batch_size = len(batch)
+        
 
         if all_loss is None:
             # test
@@ -416,7 +417,8 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                 r_index = pos_r_index.unsqueeze(-1).repeat(1, self.num_negative + 1)
                 h_index[:, 1:] = neg_h_index
                 t_index[:, 1:] = neg_t_index
-                pred = self.model(graph, h_index, t_index, r_index, all_loss=all_loss, metric=metric, conditional_probability = self.conditional_probability)
+                pred = self.model(graph, h_index, t_index, r_index, 
+                                  all_loss=all_loss, metric=metric, conditional_probability = self.conditional_probability)
 
         else:
             # train
@@ -499,7 +501,6 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
         
         else:            
             # joint probaility - rank each positive against negative samples from the same entity types as the positive ones
-            
             # assert not none
             assert degree_in_type is not None
             assert num_nodes_per_type is not None
