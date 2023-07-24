@@ -8,7 +8,7 @@ dataset:
 task:
   class: KnowledgeGraphCompletionBiomed
   model:
-    class: AStarNet
+    class: NBFNet
     base_layer:
       class: NBFNetConv
       input_dim: 32
@@ -21,14 +21,16 @@ task:
     num_layer: 6
     short_cut: yes
     remove_one_hop: yes
-    node_ratio: 0.1
+    #node_ratio: 0.05
   criterion: bce
   num_negative: 32
   strict_negative: yes
   adversarial_temperature: 0.5
   sample_weight: no
-  full_batch_eval: yes
+  heterogeneous_negative: yes
+  heterogeneous_evaluation: yes
   conditional_probability: yes
+  full_batch_eval: no
 
 optimizer:
   class: Adam
@@ -36,7 +38,7 @@ optimizer:
 
 engine:
   gpus: {{ gpus }}
-  batch_size: 64
+  batch_size: 32
 
 train:
   num_epoch: 5
