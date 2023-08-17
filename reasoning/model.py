@@ -33,9 +33,9 @@ class NeuralBellmanFordNetwork(nn.Module, core.Configurable):
             self.edge_dropout = nn.Dropout(edge_dropout)
         else:
             self.edge_dropout = None
-
-        self.layers = nn.ModuleList()
-        for i in range(num_layer):
+            
+        self.layers = nn.ModuleList([base_layer])
+        for i in range(num_layer-1):
             self.layers.append(core.Configurable.load_config_dict(base_layer.config_dict()))
         feature_dim = base_layer.output_dim * (num_layer if concat_hidden else 1) + base_layer.input_dim
         self.query = nn.Embedding(base_layer.num_relation * 2, base_layer.input_dim)
