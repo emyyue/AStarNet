@@ -2,13 +2,13 @@ output_dir: /home/icb/yue.hu/proj_genefun/AStarNet/
 
 dataset:
   class: biomedical
-  path: /home/icb/yue.hu/proj_genefun/NBFNet/data/mock
+  path: /lustre/groups/crna01/datasets/txgnn/cardiovascular_42/nfbnet/
   include_factgraph: True
 
 task:
   class: KnowledgeGraphCompletionBiomed
   model:
-    class: NBFNet
+    class: AStarNet
     base_layer:
       class: NBFNetConv
       input_dim: 32
@@ -20,19 +20,17 @@ task:
       dependent: yes
     num_layer: 6
     short_cut: yes
-    remove_one_hop: yes
-    #node_ratio: 0.05
+    remove_one_hop: no
+    node_ratio: 0.1
   criterion: bce
   num_negative: 32
   strict_negative: yes
   heterogeneous_negative: yes
   heterogeneous_evaluation: yes
-  adversarial_temperature: 0.5
+  adversarial_temperature: 1
   sample_weight: no
-  heterogeneous_negative: yes
-  heterogeneous_evaluation: yes
+  full_batch_eval: yes
   conditional_probability: yes
-  full_batch_eval: no
 
 optimizer:
   class: Adam
@@ -40,9 +38,10 @@ optimizer:
 
 engine:
   gpus: {{ gpus }}
-  batch_size: 32
+  batch_size: 4
 
 train:
-  num_epoch: 5
+  num_epoch: 1
+  #batch_per_epoch: 1000
 
 metric: mrr

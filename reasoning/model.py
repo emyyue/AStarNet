@@ -14,6 +14,9 @@ from .data import VirtualTensor, Range, RepeatGraph
 from .functional import bincount, variadic_topks
 
 
+import os
+os.environ['CUDA_LAUCH_BLOCKING']='1'
+
 @R.register("model.NBFNet")
 class NeuralBellmanFordNetwork(nn.Module, core.Configurable):
 

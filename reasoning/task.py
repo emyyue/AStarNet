@@ -11,6 +11,9 @@ import torch_scatter
 from torchdrug.layers import functional
 from torchdrug import core, tasks, metrics
 
+import os
+os.environ['CUDA_LAUCH_BLOCKING']='1'
+
 @R.register("task.InductiveKnowledgeGraphCompletion")
 class InductiveKnowledgeGraphCompletion(tasks.KnowledgeGraphCompletion, core.Configurable):
 

@@ -334,7 +334,8 @@ class biomedical(data.KnowledgeGraphDataset):
                 entity_token, type_token = line.strip().split()
                 if type_token not in inv_type_vocab:
                     inv_type_vocab[type_token] = len(inv_type_vocab)
-                node_type[self.inv_entity_vocab[entity_token]] = inv_type_vocab[type_token]
+                if entity_token in self.inv_entity_vocab:
+                    node_type[self.inv_entity_vocab[entity_token]] = inv_type_vocab[type_token]
 
         assert len(node_type) == self.num_entity
         _, node_type = zip(*sorted(node_type.items()))

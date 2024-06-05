@@ -21,7 +21,7 @@ task:
     num_layer: 6
     short_cut: yes
     remove_one_hop: yes
-    #node_ratio: 0.05
+    node_ratio: 0.05
   criterion: bce
   num_negative: 32
   strict_negative: yes
