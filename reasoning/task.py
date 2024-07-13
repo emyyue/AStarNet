@@ -201,7 +201,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
                  num_negative=128, margin=6, adversarial_temperature=0, strict_negative=True,
                  heterogeneous_negative=False, heterogeneous_evaluation=False, filtered_ranking=True,
                  fact_ratio=None, sample_weight=True, conditional_probability=False,
-                 full_batch_eval=False):
+                 full_batch_eval=False,  train2_in_factgraph=True):
         super(KnowledgeGraphCompletionBiomed, self).__init__(model=model, criterion=criterion, metric=metric, 
                                                              num_negative=num_negative, margin=margin,
                                                              adversarial_temperature=adversarial_temperature, 
@@ -211,6 +211,7 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
         self.heterogeneous_negative = heterogeneous_negative
         self.heterogeneous_evaluation = heterogeneous_evaluation
         self.conditional_probability = conditional_probability
+        self.train2_in_factgraph = train2_in_factgraph
         
     def preprocess(self, train_set, valid_set, test_set):
         if isinstance(train_set, torch_data.Subset):
@@ -221,6 +222,8 @@ class KnowledgeGraphCompletionBiomed(tasks.KnowledgeGraphCompletion, core.Config
         self.num_relation = dataset.num_relation
         self.register_buffer("graph", dataset.graph)
         fact_mask = torch.ones(len(dataset), dtype=torch.bool)
+        if not self.train2_in_factgraph:
+            fact_mask[train_set.indices] = 0
         fact_mask[valid_set.indices] = 0
         fact_mask[test_set.indices] = 0
         if self.fact_ratio:
