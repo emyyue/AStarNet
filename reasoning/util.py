@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import logging
 import argparse
@@ -108,7 +107,20 @@ def build_solver(cfg, dataset):
     solver = core.Engine(task, train_set, valid_set, test_set, optimizer, **cfg.engine)
 
     if "checkpoint" in cfg:
-        solver.load(cfg.checkpoint)
+        if comm.get_rank() == 0:
+            logger.warning("Load checkpoint from %s" % cfg.checkpoint)
+        checkpoint = os.path.expanduser(cfg.checkpoint)
+        state = torch.load(cfg.checkpoint, map_location=solver.device)
+        state["model"] = {k: v for k, v in state["model"].items() if isinstance(v, torch.Tensor)}
+
+        solver.model.load_state_dict(state["model"], strict=False)
+        solver.optimizer.load_state_dict(state["optimizer"])
+        for state in solver.optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(solver.device)
+
+        comm.synchronize()
 
     return solver
 
@@ -120,20 +132,3 @@ def detect_variables(cfg_file):
     ast = env.parse(raw)
     vars = meta.find_undeclared_variables(ast)
     return vars
-
-
-class DebugHook:
-    instance = None
-
-    def __call__(self, *args, **kwargs):
-        if comm.get_rank() > 0:
-            while True:
-                pass
-
-        if self.instance is None:
-            from IPython.core import ultratb
-            self.instance = ultratb.FormattedTB(mode="Plain", color_scheme="Linux", call_pdb=1)
-        return self.instance(*args, **kwargs)
-
-
-sys.excepthook = DebugHook()
